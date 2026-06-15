@@ -14,8 +14,12 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Fetch the compiler engine (read-only dependency).
+# Bump PAS_COMPILER_REF to pull newer engine fixes; changing it also busts the
+# Docker build cache so the clone is always re-fetched.
 ARG PAS_COMPILER_REPO=https://github.com/airandblueamt-Claude/amt-pas-compiler.git
-RUN git clone --depth 1 "$PAS_COMPILER_REPO" /app/compiler
+ARG PAS_COMPILER_REF=3f923f4
+RUN git clone "$PAS_COMPILER_REPO" /app/compiler \
+    && git -C /app/compiler checkout "$PAS_COMPILER_REF"
 
 COPY app.py .
 COPY static ./static
