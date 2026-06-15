@@ -174,7 +174,7 @@ def _build_config(meta: dict, input_dir: str, output_pdf: str) -> dict:
         "missing_section_mode": "placeholder",
         "placeholder_note": "To be submitted / Certificate to follow",
         "normalize_appended": True,
-        "drawing_fit": meta.get("drawing_fit", "native"),
+        "drawing_fit": meta.get("drawing_fit", "auto"),  # fit every page onto A4
     }
     return cfg
 
