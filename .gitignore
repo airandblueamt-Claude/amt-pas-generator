@@ -1,0 +1,10 @@
+# The compiler is a fetched dependency, not vendored source
+compiler/
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+
+# Runtime working data (uploads + generated PDFs)
+sessions/

@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AMT PAS Generator</title>
+<link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+<header>
+  <div class="bar">
+    <img src="/assets/amt-logo.png" alt="AMT" onerror="this.style.display='none'">
+    <div class="titles">
+      <h1>PAS&nbsp;Generator</h1>
+      <p>Turn a folder of source documents into one branded Technical Submittal PDF.</p>
+    </div>
+  </div>
+</header>
+
+<div class="steps">
+  <div class="step active" data-step="1"><span class="n">1</span> Project details</div>
+  <div class="step" data-step="2"><span class="n">2</span> Upload &amp; sort files</div>
+  <div class="step" data-step="3"><span class="n">3</span> Review</div>
+  <div class="step" data-step="4"><span class="n">4</span> Generate</div>
+</div>
+
+<main>
+  <!-- STEP 1 -->
+  <section class="panel active" id="p1">
+    <h2>Project &amp; cover details</h2>
+    <p class="sub">These populate the cover page, the bilingual table of contents and the sign-off block.</p>
+
+    <h3 class="group"><span class="amt-diamond"></span> Reference</h3>
+    <div class="grid">
+      <div><label>Submittal Ref No.</label><input id="ref_no" placeholder="2506038-TCS-010"></div>
+      <div><label>Version</label><input id="version" value="00"></div>
+      <div><label>MTS Ref No. (optional)</label><input id="mts_ref_no" placeholder="2506038-MTS-010"></div>
+      <div><label>Date</label><input id="date" type="date"></div>
+    </div>
+
+    <h3 class="group"><span class="amt-diamond"></span> Project</h3>
+    <div class="grid">
+      <div class="wide"><label>Project title (English)</label>
+        <input id="project_title_en" placeholder="Material Submittal for IPTV and Digital Signage System"></div>
+      <div class="wide"><label>عنوان المشروع (Arabic)</label>
+        <input id="project_title_ar" dir="rtl" placeholder="التقديم الفني لنظام IPTV والشاشات الرقمية"></div>
+      <div class="wide"><label>اسم الشركة (Arabic company name)</label>
+        <input id="company_name_ar" dir="rtl" value="شركة الأبعاد المترامية للتقنية"></div>
+      <div><label>Client</label><input id="client" placeholder="King Fahd University Hospital — B02"></div>
+      <div><label>Building</label><input id="building" placeholder="B02"></div>
+    </div>
+
+    <h3 class="group"><span class="amt-diamond"></span> Sign-off</h3>
+    <div class="grid">
+      <div><label>Prepared by — role</label><input id="prep_role" value="Sales Coordinator"></div>
+      <div><label>Prepared by — initials</label><input id="prep_init" placeholder="MSD"></div>
+      <div><label>Checked by — role</label><input id="chk_role" value="Document Controller"></div>
+      <div><label>Checked by — initials</label><input id="chk_init" placeholder="MZK"></div>
+      <div><label>Approved by — role</label><input id="app_role" value="Presales Manager"></div>
+      <div><label>Approved by — initials</label><input id="app_init" placeholder="MGT"></div>
+      <div><label>Revision author</label><input id="rev_author" placeholder="SKR"></div>
+      <div><label>Revision remarks</label><input id="rev_remarks" value="Issued for approval"></div>
+    </div>
+
+    <div class="nav">
+      <span></span>
+      <button class="btn primary" onclick="go(2)">Next: upload files →</button>
+    </div>
+  </section>
+
+  <!-- STEP 2 -->
+  <section class="panel" id="p2">
+    <h2>Upload &amp; sort your source files</h2>
+    <p class="sub">Add the documents exported from OneDrive. Each file is auto-sorted into a submittal
+      section — review the section column and fix any guesses (marked <span class="badge guess">guess</span>).</p>
+
+    <div class="drop">
+      <p><strong>Drop files here</strong> or choose:</p>
+      <p>
+        <input type="file" id="files" multiple>
+        &nbsp;or a whole folder:&nbsp;
+        <input type="file" id="folder" webkitdirectory directory multiple>
+      </p>
+    </div>
+
+    <div id="filelist"></div>
+    <div class="cov" id="coverage"></div>
+
+    <div class="nav">
+      <button class="btn" onclick="go(1)">← Back</button>
+      <button class="btn primary" id="toReview" onclick="go(3)" disabled>Next: review →</button>
+    </div>
+  </section>
+
+  <!-- STEP 3 -->
+  <section class="panel" id="p3">
+    <h2>Review before generating</h2>
+    <p class="sub">This is the compiler's discovery report — exactly what will go into each section.</p>
+    <div id="reviewBox"><div class="spinner"></div></div>
+    <div class="nav">
+      <button class="btn" onclick="go(2)">← Back</button>
+      <button class="btn primary" id="toGen" onclick="go(4)" disabled>Looks good — generate PDF →</button>
+    </div>
+  </section>
+
+  <!-- STEP 4 -->
+  <section class="panel" id="p4">
+    <h2>Generating your submittal</h2>
+    <p class="sub">Cover → bilingual contents → all eight sections, merged into one PDF.</p>
+    <div id="genBox"><div class="spinner"></div><p class="center">Compiling…</p></div>
+    <div class="nav">
+      <button class="btn" onclick="go(3)">← Back</button>
+      <span></span>
+    </div>
+  </section>
+</main>
+
+<script src="/static/app.js"></script>
+</body>
+</html>
