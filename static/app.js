@@ -46,66 +46,101 @@ function addFiles(fileList) {
   });
 }
 
-$("files").addEventListener("change", e => addFiles(e.target.files));
-$("folder").addEventListener("change", e => addFiles(e.target.files));
+$("files").addEventListener("change", e => { addFiles(e.target.files); e.target.value = ""; });
+$("folder").addEventListener("change", e => { addFiles(e.target.files); e.target.value = ""; });
 
-const drop = document.querySelector(".drop");
-["dragover", "dragenter"].forEach(ev => drop.addEventListener(ev, e => {
-  e.preventDefault(); drop.style.borderColor = "var(--amt-red)";
+const dz = $("dropzone");
+["dragover", "dragenter"].forEach(ev => dz.addEventListener(ev, e => {
+  e.preventDefault(); if (!draggingItem) dz.classList.add("hot");
 }));
-["dragleave", "drop"].forEach(ev => drop.addEventListener(ev, e => {
-  e.preventDefault(); drop.style.borderColor = "";
+["dragleave", "drop"].forEach(ev => dz.addEventListener(ev, e => {
+  e.preventDefault(); dz.classList.remove("hot");
 }));
-drop.addEventListener("drop", e => { if (e.dataTransfer.files) addFiles(e.dataTransfer.files); });
+dz.addEventListener("drop", e => { if (e.dataTransfer.files && e.dataTransfer.files.length) addFiles(e.dataTransfer.files); });
 
 function humanSize(b) {
   if (b < 1024) return b + " B";
   if (b < 1048576) return (b / 1024).toFixed(0) + " KB";
   return (b / 1048576).toFixed(1) + " MB";
 }
-
-function renderFiles() {
-  const box = $("filelist");
-  box.innerHTML = "";
-  ITEMS.forEach((it, idx) => {
-    const row = document.createElement("div");
-    row.className = "filerow";
-    const opts = SECTIONS.map(s =>
-      `<option value="${s.no}" ${s.no === it.section ? "selected" : ""}>${s.no}. ${escapeHtml(s.en)}${s.optional ? " (optional)" : ""}</option>`
-    ).join("");
-    const nm = escapeHtml(it.name), reason = escapeHtml(it.reason);
-    row.innerHTML = `
-      <div class="nm" title="${nm}">${nm}${it.confident ? "" : `<span class="badge guess" title="${reason}">guess</span>`}</div>
-      <div class="sz">${humanSize(it.size)}</div>
-      <select data-i="${idx}">${opts}</select>
-      <button class="x" data-rm="${idx}" title="remove">✕</button>`;
-    box.appendChild(row);
-  });
-  box.querySelectorAll("select").forEach(sel =>
-    sel.addEventListener("change", e => { ITEMS[+e.target.dataset.i].section = +e.target.value; renderCoverage(); }));
-  box.querySelectorAll("[data-rm]").forEach(btn =>
-    btn.addEventListener("click", e => { ITEMS.splice(+e.target.dataset.rm, 1); renderFiles(); }));
-  renderCoverage();
+function fileIcon(name) {
+  const e = name.split(".").pop().toLowerCase();
+  if (["xlsx", "xls", "csv"].includes(e)) return "📊";
+  if (["doc", "docx"].includes(e)) return "📝";
+  if (e === "pdf") return "📄";
+  return "📎";
 }
 
-function renderCoverage() {
-  const cov = $("coverage");
-  cov.innerHTML = "";
+let draggingItem = null;   // index being dragged between section cards
+
+// Render the 8-section board with each file grouped under its section
+function renderFiles() {
+  const board = $("board");
+  board.innerHTML = "";
   const counts = {};
   ITEMS.forEach(it => counts[it.section] = (counts[it.section] || 0) + 1);
+
   SECTIONS.forEach(s => {
     const n = counts[s.no] || 0;
-    const chip = document.createElement("span");
-    let cls = "chip";
-    if (n > 0) cls += " ok";
-    else if (!s.optional) cls += " miss";
-    else cls += " opt";
-    chip.className = cls;
-    chip.textContent = `§${s.no} ${s.en}: ${n || (s.optional ? "—" : "missing")}`;
-    cov.appendChild(chip);
+    const filled = n > 0, ok = filled || s.optional;
+    const card = document.createElement("div");
+    card.className = "scard " + (filled ? "filled" : (s.optional ? "optional" : "needed"));
+    card.dataset.no = s.no;
+
+    const items = ITEMS.map((it, i) => [it, i]).filter(([it]) => it.section === s.no);
+    const rows = items.map(([it, i]) => {
+      const nm = escapeHtml(it.name), reason = escapeHtml(it.reason);
+      const opts = SECTIONS.map(o =>
+        `<option value="${o.no}" ${o.no === it.section ? "selected" : ""}>§${o.no} ${escapeHtml(o.en)}</option>`).join("");
+      return `<div class="frow" draggable="true" data-i="${i}">
+        <span class="ic">${fileIcon(it.name)}</span>
+        <span class="nm" title="${nm}">${nm}${it.confident ? "" : `<span class="badge guess" title="${reason}">guess</span>`}</span>
+        <span class="sz">${humanSize(it.size)}</span>
+        <select class="mv" data-i="${i}" title="move to another section">${opts}</select>
+        <button class="x" data-rm="${i}" title="remove">✕</button>
+      </div>`;
+    }).join("");
+
+    card.innerHTML = `
+      <div class="scard-h">
+        <span class="sno">${s.no}</span>
+        <span class="stitle">${escapeHtml(s.en)}</span>
+        <span class="stag ${s.optional ? "opt" : "req"}">${s.optional ? "optional" : "required"}</span>
+        <span class="scount ${ok ? "ok" : "miss"}">${n}</span>
+      </div>
+      <div class="scard-b">${rows || `<div class="empty">${s.optional ? "— none (placeholder will be inserted) —" : "drag a file here"}</div>`}</div>`;
+    board.appendChild(card);
   });
-  const requiredMissing = SECTIONS.some(s => !s.optional && !(counts[s.no] > 0));
-  $("toReview").disabled = !ITEMS.length || requiredMissing;
+
+  // wire row controls
+  board.querySelectorAll("select.mv").forEach(sel =>
+    sel.addEventListener("change", e => { ITEMS[+e.target.dataset.i].section = +e.target.value; renderFiles(); }));
+  board.querySelectorAll("[data-rm]").forEach(btn =>
+    btn.addEventListener("click", e => { ITEMS.splice(+e.target.dataset.rm, 1); renderFiles(); }));
+
+  // drag a file row onto another section card to reassign it
+  board.querySelectorAll(".frow").forEach(row => {
+    row.addEventListener("dragstart", e => { draggingItem = +row.dataset.i; e.dataTransfer.effectAllowed = "move"; row.classList.add("drag"); });
+    row.addEventListener("dragend", () => { draggingItem = null; row.classList.remove("drag"); board.querySelectorAll(".scard").forEach(c => c.classList.remove("over")); });
+  });
+  board.querySelectorAll(".scard").forEach(card => {
+    card.addEventListener("dragover", e => { if (draggingItem !== null) { e.preventDefault(); card.classList.add("over"); } });
+    card.addEventListener("dragleave", () => card.classList.remove("over"));
+    card.addEventListener("drop", e => {
+      e.preventDefault();
+      if (draggingItem !== null) { ITEMS[draggingItem].section = +card.dataset.no; draggingItem = null; renderFiles(); }
+    });
+  });
+
+  // summary + gating
+  const total = ITEMS.length;
+  const missing = SECTIONS.filter(s => !s.optional && !(counts[s.no] > 0));
+  $("fileSummary").textContent = total ? `${total} file${total > 1 ? "s" : ""} across ${Object.keys(counts).length} section${Object.keys(counts).length > 1 ? "s" : ""}.` : "No files yet.";
+  const rs = $("reqStatus");
+  if (!total) { rs.textContent = ""; }
+  else if (missing.length) { rs.className = "miss"; rs.textContent = `Missing required: ${missing.map(s => "§" + s.no).join(", ")}`; }
+  else { rs.className = "good"; rs.textContent = "✓ All required sections have files"; }
+  $("toReview").disabled = !total || missing.length > 0;
 }
 
 // ---- collect config from step 1 ----

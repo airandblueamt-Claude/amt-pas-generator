@@ -71,20 +71,26 @@
   <!-- STEP 2 -->
   <section class="panel" id="p2">
     <h2>Upload &amp; sort your source files</h2>
-    <p class="sub">Add the documents exported from OneDrive. Each file is auto-sorted into a submittal
-      section — review the section column and fix any guesses (marked <span class="badge guess">guess</span>).</p>
+    <p class="sub">Add the documents exported from OneDrive — drop them anywhere below or pick a whole folder.
+      Each file is auto-sorted into the right submittal section. <strong>Drag any file between sections</strong>
+      to correct it, or use its section menu. Guessed files are flagged <span class="badge guess">guess</span>.</p>
 
-    <div class="drop">
-      <p><strong>Drop files here</strong> or choose:</p>
-      <p>
-        <input type="file" id="files" multiple>
-        &nbsp;or a whole folder:&nbsp;
-        <input type="file" id="folder" webkitdirectory directory multiple>
-      </p>
+    <label for="files" class="drop" id="dropzone">
+      <div class="drop-ic">⬆</div>
+      <p><strong>Drop files here</strong> — or <span class="link">browse files</span></p>
+      <p class="hint">PDF, Word &amp; Excel · or pick a whole exported folder below</p>
+      <div class="drop-actions">
+        <input type="file" id="files" multiple hidden>
+        <label for="folder" class="btn sm">📁 Choose a folder…</label>
+        <input type="file" id="folder" webkitdirectory directory multiple hidden>
+      </div>
+    </label>
+
+    <div class="board-head">
+      <span id="fileSummary" class="muted">No files yet.</span>
+      <span id="reqStatus" class="muted"></span>
     </div>
-
-    <div id="filelist"></div>
-    <div class="cov" id="coverage"></div>
+    <div id="board" class="board"></div>
 
     <div class="nav">
       <button class="btn" onclick="go(1)">← Back</button>
