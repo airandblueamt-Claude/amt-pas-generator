@@ -46,6 +46,10 @@ import build_pas as BUILD    # noqa: E402
 # Where uploaded files + generated PDFs live for the lifetime of a session.
 SESSIONS_DIR = os.environ.get("PAS_SESSIONS_DIR", os.path.join(HERE, "sessions"))
 os.makedirs(SESSIONS_DIR, exist_ok=True)
+# Blob store for files uploaded in the background as the user adds them, so the
+# "Review" step only posts a tiny manifest (instant) instead of re-uploading bytes.
+UPLOADS_DIR = os.path.join(SESSIONS_DIR, "_uploads")
+os.makedirs(UPLOADS_DIR, exist_ok=True)
 
 app = FastAPI(title="AMT PAS Generator")
 
@@ -179,8 +183,9 @@ def _build_config(meta: dict, input_dir: str, output_pdf: str) -> dict:
     return cfg
 
 
-def _materialize(session: str, files: list[UploadFile], sections: list[int]) -> str:
-    """Write each upload into compiler/<n>-<title>/ inside the session input dir."""
+def _materialize(session: str, items: list[dict]) -> str:
+    """Copy each already-uploaded blob (referenced by id) into
+    compiler/<n>-<title>/ inside the session input dir, per its section."""
     sdir = os.path.join(SESSIONS_DIR, session)
     input_dir = os.path.join(sdir, "input")
     if os.path.isdir(input_dir):
@@ -194,13 +199,15 @@ def _materialize(session: str, files: list[UploadFile], sections: list[int]) -> 
         os.makedirs(folder, exist_ok=True)
         folders[s["no"]] = folder
 
-    for up, sec_no in zip(files, sections):
-        target = folders.get(int(sec_no))
-        if target is None:
+    for it in items:
+        fid = it.get("id", "")
+        if not re.fullmatch(r"[A-Za-z0-9]{8,40}", fid):
             continue
-        dest = os.path.join(target, _safe(up.filename))
-        with open(dest, "wb") as out:
-            shutil.copyfileobj(up.file, out)
+        src = os.path.join(UPLOADS_DIR, fid)
+        target = folders.get(int(it.get("section", 0)))
+        if target is None or not os.path.isfile(src):
+            continue
+        shutil.copyfile(src, os.path.join(target, _safe(it.get("name", "file"))))
     return input_dir
 
 
@@ -236,26 +243,39 @@ async def api_classify(payload: dict):
     return {"suggestions": [dict(name=n, **classify(n)) for n in names]}
 
 
+@app.post("/api/files")
+def api_files(files: list[UploadFile] = File(...)):
+    """Store uploaded file bytes in the blob store and return their ids. Called in
+    the background as the user adds files, so the bytes are uploaded once, up front."""
+    out = []
+    for up in files:
+        fid = uuid.uuid4().hex
+        dest = os.path.join(UPLOADS_DIR, fid)
+        with open(dest, "wb") as fh:
+            shutil.copyfileobj(up.file, fh)
+        out.append({"id": fid, "name": up.filename, "size": os.path.getsize(dest)})
+    return {"files": out}
+
+
 @app.post("/api/session")
-async def api_session(
-    config: str = Form(...),
-    sections: list[int] = Form(...),
-    files: list[UploadFile] = File(...),
-):
-    if len(files) != len(sections):
-        raise HTTPException(400, "files and sections count mismatch")
+def api_session(config: str = Form(...), manifest: str = Form(...)):
+    """Build a session from a lightweight manifest of already-uploaded blobs
+    ([{id, section, name}]) — no file bytes here, so this is fast."""
     try:
         meta = json.loads(config)
-    except json.JSONDecodeError:
-        raise HTTPException(400, "config is not valid JSON")
+        items = json.loads(manifest)
+    except (json.JSONDecodeError, TypeError):
+        raise HTTPException(400, "config/manifest is not valid JSON")
+    if not isinstance(items, list):
+        raise HTTPException(400, "manifest must be a list")
 
     sid = uuid.uuid4().hex
     sdir = os.path.join(SESSIONS_DIR, sid)
     os.makedirs(sdir, exist_ok=True)
     with open(os.path.join(sdir, "meta.json"), "w", encoding="utf-8") as fh:
         json.dump(meta, fh, ensure_ascii=False, indent=2)
-    _materialize(sid, files, sections)
-    return {"session": sid, "files": len(files)}
+    _materialize(sid, items)
+    return {"session": sid, "files": len(items)}
 
 
 @app.get("/api/session/{sid}/validate")

@@ -39,10 +39,12 @@ function addFiles(fileList) {
     method: "POST", headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ names })
   }).then(r => r.json()).then(d => {
-    d.suggestions.forEach((s, i) => {
-      ITEMS.push({ file: incoming[i], name: s.name, size: incoming[i].size,
-                   section: s.section, confident: s.confident, reason: s.reason });
+    const fresh = d.suggestions.map((s, i) => {
+      const it = { file: incoming[i], name: s.name, size: incoming[i].size,
+                   section: s.section, confident: s.confident, reason: s.reason };
+      ITEMS.push(it); return it;
     });
+    uploadBatch(fresh);
     renderFiles();
   });
 }
@@ -50,14 +52,42 @@ function addFiles(fileList) {
 // Drop files straight into a chosen section — no auto-classification, so e.g. all
 // your drawings go to §8 exactly as dropped.
 function addFilesToSection(fileList, sectionNo) {
-  let added = 0;
+  const fresh = [];
   for (const f of fileList) {
     if (f.name.startsWith("~$") || f.name.endsWith(":Zone.Identifier")) continue;
-    ITEMS.push({ file: f, name: f.name, size: f.size, section: sectionNo,
-                 confident: true, reason: "placed here by you" });
-    added++;
+    const it = { file: f, name: f.name, size: f.size, section: sectionNo,
+                 confident: true, reason: "placed here by you" };
+    ITEMS.push(it); fresh.push(it);
   }
-  if (added) renderFiles();
+  if (fresh.length) { uploadBatch(fresh); renderFiles(); }
+}
+
+// ---- background upload: send each file's bytes once, as soon as it's added ----
+const uploadPromises = new Set();
+
+function uploadBatch(items) {
+  if (!items.length) return;
+  items.forEach(it => it.uploading = true);
+  setUploadStatus();
+  const fd = new FormData();
+  items.forEach(it => fd.append("files", it.file, it.name));
+  const p = fetch("/api/files", { method: "POST", body: fd })
+    .then(r => { if (!r.ok) throw new Error("upload failed"); return r.json(); })
+    .then(d => { d.files.forEach((f, i) => { items[i].id = f.id; items[i].uploading = false; }); })
+    .catch(() => { items.forEach(it => { it.uploading = false; it.uploadError = true; }); })
+    .finally(() => { uploadPromises.delete(p); setUploadStatus(); renderFiles(); });
+  uploadPromises.add(p);
+  return p;
+}
+
+function setUploadStatus() {
+  const el = $("upStatus"); if (!el) return;
+  const up = ITEMS.filter(i => i.uploading).length;
+  const err = ITEMS.some(i => i.uploadError);
+  if (up) { el.className = "muted"; el.textContent = `Uploading ${up} file${up > 1 ? "s" : ""}…`; }
+  else if (err) { el.className = "miss"; el.textContent = "Some uploads failed — re-add those files"; }
+  else if (ITEMS.length) { el.className = "good"; el.textContent = "✓ Files uploaded — review is instant"; }
+  else { el.textContent = ""; }
 }
 
 $("files").addEventListener("change", e => { addFiles(e.target.files); e.target.value = ""; });
@@ -192,16 +222,20 @@ function buildConfig() {
 }
 
 // ---- step 3: build session + validate ----
-function sig() { return ITEMS.map(i => i.name + ":" + i.section).join("|") + "::" + JSON.stringify(buildConfig()); }
+function sig() { return ITEMS.map(i => (i.id || i.name) + ":" + i.section).join("|") + "::" + JSON.stringify(buildConfig()); }
 
 async function ensureSession() {
+  // wait for any in-flight background uploads to finish (usually already done)
+  if (uploadPromises.size) await Promise.all([...uploadPromises]);
   const current = sig();
   if (SESSION && current === lastSig) return SESSION;
+  // post only a lightweight manifest of already-uploaded blobs — no bytes here
+  const manifest = ITEMS.filter(it => it.id).map(it => ({ id: it.id, section: it.section, name: it.name }));
   const fd = new FormData();
   fd.append("config", JSON.stringify(buildConfig()));
-  ITEMS.forEach(it => { fd.append("files", it.file, it.name); fd.append("sections", it.section); });
+  fd.append("manifest", JSON.stringify(manifest));
   const r = await fetch("/api/session", { method: "POST", body: fd });
-  if (!r.ok) throw new Error("upload failed (" + r.status + ")");
+  if (!r.ok) throw new Error("could not prepare submittal (" + r.status + ")");
   const d = await r.json();
   SESSION = d.session; lastSig = current;
   return SESSION;
