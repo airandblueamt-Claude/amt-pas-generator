@@ -7,7 +7,7 @@ let lastSig = "";           // signature of files+sections at last session build
 const $ = (id) => document.getElementById(id);
 
 // ---- load the authoritative section list from the compiler ----
-fetch("/api/template").then(r => r.json()).then(d => { SECTIONS = d.sections; });
+fetch("/api/template").then(r => r.json()).then(d => { SECTIONS = d.sections; renderFiles(); });
 
 // ---- stepper ----
 function go(n) {
@@ -20,6 +20,7 @@ function go(n) {
     s.classList.toggle("done", i < n);
   });
   window.scrollTo({ top: 0, behavior: "smooth" });
+  if (n === 2) renderFiles();
   if (n === 3) startReview();
   if (n === 4) startGenerate();
 }
@@ -44,6 +45,19 @@ function addFiles(fileList) {
     });
     renderFiles();
   });
+}
+
+// Drop files straight into a chosen section — no auto-classification, so e.g. all
+// your drawings go to §8 exactly as dropped.
+function addFilesToSection(fileList, sectionNo) {
+  let added = 0;
+  for (const f of fileList) {
+    if (f.name.startsWith("~$") || f.name.endsWith(":Zone.Identifier")) continue;
+    ITEMS.push({ file: f, name: f.name, size: f.size, section: sectionNo,
+                 confident: true, reason: "placed here by you" });
+    added++;
+  }
+  if (added) renderFiles();
 }
 
 $("files").addEventListener("change", e => { addFiles(e.target.files); e.target.value = ""; });
@@ -107,8 +121,11 @@ function renderFiles() {
         <span class="stitle">${escapeHtml(s.en)}</span>
         <span class="stag ${s.optional ? "opt" : "req"}">${s.optional ? "optional" : "required"}</span>
         <span class="scount ${ok ? "ok" : "miss"}">${n}</span>
+        <label class="addbtn" title="add files to this section">＋
+          <input type="file" multiple hidden data-add="${s.no}">
+        </label>
       </div>
-      <div class="scard-b">${rows || `<div class="empty">${s.optional ? "— none (placeholder will be inserted) —" : "drag a file here"}</div>`}</div>`;
+      <div class="scard-b">${rows || `<div class="empty">${s.optional ? "— none (placeholder will be inserted) —" : "drop this section's files here"}</div>`}</div>`;
     board.appendChild(card);
   });
 
@@ -117,18 +134,28 @@ function renderFiles() {
     sel.addEventListener("change", e => { ITEMS[+e.target.dataset.i].section = +e.target.value; renderFiles(); }));
   board.querySelectorAll("[data-rm]").forEach(btn =>
     btn.addEventListener("click", e => { ITEMS.splice(+e.target.dataset.rm, 1); renderFiles(); }));
+  // per-section "＋" browse button -> files go straight into that section
+  board.querySelectorAll("[data-add]").forEach(inp =>
+    inp.addEventListener("change", e => { addFilesToSection(e.target.files, +e.target.dataset.add); e.target.value = ""; }));
 
   // drag a file row onto another section card to reassign it
   board.querySelectorAll(".frow").forEach(row => {
     row.addEventListener("dragstart", e => { draggingItem = +row.dataset.i; e.dataTransfer.effectAllowed = "move"; row.classList.add("drag"); });
     row.addEventListener("dragend", () => { draggingItem = null; row.classList.remove("drag"); board.querySelectorAll(".scard").forEach(c => c.classList.remove("over")); });
   });
+  // each section card is a drop target: OS files dropped here go INTO this section
+  // (no auto-sort); an internal row dragged here is reassigned to it.
   board.querySelectorAll(".scard").forEach(card => {
-    card.addEventListener("dragover", e => { if (draggingItem !== null) { e.preventDefault(); card.classList.add("over"); } });
+    card.addEventListener("dragover", e => { e.preventDefault(); card.classList.add("over"); });
     card.addEventListener("dragleave", () => card.classList.remove("over"));
     card.addEventListener("drop", e => {
       e.preventDefault();
-      if (draggingItem !== null) { ITEMS[draggingItem].section = +card.dataset.no; draggingItem = null; renderFiles(); }
+      card.classList.remove("over");
+      if (e.dataTransfer.files && e.dataTransfer.files.length) {
+        addFilesToSection(e.dataTransfer.files, +card.dataset.no);
+      } else if (draggingItem !== null) {
+        ITEMS[draggingItem].section = +card.dataset.no; draggingItem = null; renderFiles();
+      }
     });
   });
 

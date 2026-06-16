@@ -91,8 +91,13 @@ input[dir=rtl]{font-family:var(--arabic);font-size:16px}
   font-size:12px;font-weight:700}
 .scard-h .scount.ok{background:#EAF6EC;color:#1f7a36}
 .scard-h .scount.miss{background:#FFF3F3;color:var(--amt-red-deep)}
-.scard-b{padding:6px 10px;min-height:42px}
-.scard-b .empty{color:var(--ink-faint);font-size:12px;padding:9px 4px;font-style:italic}
+.scard-h .addbtn{width:24px;height:24px;border-radius:6px;border:1px solid var(--line);background:var(--bg);
+  display:grid;place-items:center;cursor:pointer;font-size:15px;font-weight:700;color:var(--amt-red);flex:none}
+.scard-h .addbtn:hover{border-color:var(--amt-red);background:#FFF3F3}
+.scard-b{padding:6px 10px;min-height:52px}
+.scard-b .empty{color:var(--ink-faint);font-size:12px;padding:14px 4px;font-style:italic;text-align:center;
+  border:1.5px dashed var(--line);border-radius:8px}
+.scard.over .scard-b .empty{border-color:var(--amt-red);color:var(--amt-red)}
 .frow{display:grid;grid-template-columns:20px 1fr auto auto auto;gap:8px;align-items:center;
   padding:7px 4px;border-bottom:1px solid var(--line);font-size:13px}
 .frow:last-child{border-bottom:none}
