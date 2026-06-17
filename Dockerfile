@@ -17,7 +17,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Bump PAS_COMPILER_REF to pull newer engine fixes; changing it also busts the
 # Docker build cache so the clone is always re-fetched.
 ARG PAS_COMPILER_REPO=https://github.com/airandblueamt-Claude/amt-pas-compiler.git
-ARG PAS_COMPILER_REF=5745477
+ARG PAS_COMPILER_REF=0a23f36
 RUN git clone "$PAS_COMPILER_REPO" /app/compiler \
     && git -C /app/compiler checkout "$PAS_COMPILER_REF"
 
